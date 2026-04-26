@@ -68,6 +68,8 @@ class CrawlerStartRequest(BaseModel):
     start_page: int = 1
     enable_comments: bool = True
     enable_sub_comments: bool = False
+    weibo_search_dedup: bool = True
+    weibo_duplicate_action: Literal["copy", "skip"] = "copy"
     save_option: SaveDataOptionEnum = SaveDataOptionEnum.JSONL
     cookies: str = ""
     headless: bool = False

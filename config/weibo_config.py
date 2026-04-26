@@ -38,3 +38,12 @@ WEIBO_CREATOR_ID_LIST = [
 # Whether to enable the function of crawling the full text of Weibo. It is enabled by default.
 # If turned on, it will increase the probability of being risk controlled, which is equivalent to a keyword search request that will traverse all posts and request the post details again.
 ENABLE_WEIBO_FULL_TEXT = True
+
+# Whether to enable persistent duplicate handling in Weibo search mode.
+# The cache records normalized Weibo post/comment data by note_id under data/weibo/cache.
+ENABLE_WEIBO_SEARCH_DEDUP = True
+
+# Duplicate handling action when another keyword hits an already crawled Weibo note:
+# copy = copy cached post and cached comments into the current output with the current source_keyword
+# skip = skip this note and do not request comments/media again
+WEIBO_SEARCH_DUPLICATE_ACTION = "copy"

@@ -200,6 +200,23 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
                 show_default=True,
             ),
         ] = str(config.ENABLE_GET_SUB_COMMENTS),
+        weibo_search_dedup: Annotated[
+            str,
+            typer.Option(
+                "--weibo_search_dedup",
+                help="Whether to enable persistent duplicate handling for Weibo search mode",
+                rich_help_panel="Weibo Configuration",
+                show_default=True,
+            ),
+        ] = str(config.ENABLE_WEIBO_SEARCH_DEDUP),
+        weibo_duplicate_action: Annotated[
+            str,
+            typer.Option(
+                "--weibo_duplicate_action",
+                help="Weibo search duplicate handling action: copy cached note/comments or skip",
+                rich_help_panel="Weibo Configuration",
+            ),
+        ] = config.WEIBO_SEARCH_DUPLICATE_ACTION,
         headless: Annotated[
             str,
             typer.Option(
@@ -305,6 +322,14 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
 
         enable_comment = _to_bool(get_comment)
         enable_sub_comment = _to_bool(get_sub_comment)
+        enable_weibo_search_dedup = _to_bool(weibo_search_dedup)
+        weibo_duplicate_action_value = weibo_duplicate_action.strip().lower()
+        if weibo_duplicate_action_value not in ("copy", "skip"):
+            typer.secho(
+                f"⚠️ Invalid --weibo_duplicate_action '{weibo_duplicate_action}', falling back to 'copy'.",
+                fg=typer.colors.YELLOW,
+            )
+            weibo_duplicate_action_value = "copy"
         enable_headless = _to_bool(headless)
         enable_ip_proxy_value = _to_bool(enable_ip_proxy)
         init_db_value = init_db.value if init_db else None
@@ -321,6 +346,8 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
         config.KEYWORDS = keywords
         config.ENABLE_GET_COMMENTS = enable_comment
         config.ENABLE_GET_SUB_COMMENTS = enable_sub_comment
+        config.ENABLE_WEIBO_SEARCH_DEDUP = enable_weibo_search_dedup
+        config.WEIBO_SEARCH_DUPLICATE_ACTION = weibo_duplicate_action_value
         config.HEADLESS = enable_headless
         config.CDP_HEADLESS = enable_headless
         config.SAVE_DATA_OPTION = save_data_option.value
@@ -365,6 +392,8 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
             keywords=config.KEYWORDS,
             get_comment=config.ENABLE_GET_COMMENTS,
             get_sub_comment=config.ENABLE_GET_SUB_COMMENTS,
+            weibo_search_dedup=config.ENABLE_WEIBO_SEARCH_DEDUP,
+            weibo_duplicate_action=config.WEIBO_SEARCH_DUPLICATE_ACTION,
             headless=config.HEADLESS,
             save_data_option=config.SAVE_DATA_OPTION,
             init_db=init_db_value,

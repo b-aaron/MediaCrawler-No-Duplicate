@@ -23,12 +23,15 @@
 # @Desc    :
 
 import re
-from typing import List
+from typing import Dict, List
 
-from var import source_keyword_var
+import config
+from tools import utils
+from var import crawler_type_var, source_keyword_var
 
 from .weibo_store_media import *
 from ._store_impl import *
+from .search_dedup import WeiboSearchDeduplicator
 
 
 class WeibostoreFactory:
@@ -105,7 +108,22 @@ async def update_weibo_note(note_item: Dict):
         "source_keyword": source_keyword_var.get(),
     }
     utils.logger.info(f"[store.weibo.update_weibo_note] weibo note id:{note_id}, title:{save_content_item.get('content')[:24]} ...")
-    await WeibostoreFactory.create_store().store_content(content_item=save_content_item)
+    await save_weibo_note_content(save_content_item)
+
+
+async def save_weibo_note_content(content_item: Dict, record_cache: bool = True):
+    """
+    Save normalized weibo note content.
+    Args:
+        content_item:
+        record_cache: Whether to persist this item as the canonical search cache.
+
+    Returns:
+
+    """
+    await WeibostoreFactory.create_store().store_content(content_item=content_item)
+    if record_cache and _enable_search_dedup_cache():
+        await WeiboSearchDeduplicator.get_instance().record_note(content_item)
 
 
 async def batch_update_weibo_note_comments(note_id: str, comments: List[Dict]):
@@ -160,7 +178,66 @@ async def update_weibo_note_comment(note_id: str, comment_item: Dict):
         "avatar": user_info.get("profile_image_url", ""),
     }
     utils.logger.info(f"[store.weibo.update_weibo_note_comment] Weibo note comment: {comment_id}, content: {save_comment_item.get('content', '')[:24]} ...")
-    await WeibostoreFactory.create_store().store_comment(comment_item=save_comment_item)
+    await save_weibo_note_comment(note_id, save_comment_item)
+
+
+async def save_weibo_note_comment(note_id: str, comment_item: Dict, record_cache: bool = True):
+    """
+    Save normalized weibo note comment.
+    Args:
+        note_id:
+        comment_item:
+        record_cache: Whether to persist this item as the canonical search cache.
+
+    Returns:
+
+    """
+    await WeibostoreFactory.create_store().store_comment(comment_item=comment_item)
+    if record_cache and _enable_search_dedup_cache():
+        await WeiboSearchDeduplicator.get_instance().record_comment(note_id, comment_item)
+
+
+def _enable_search_dedup_cache() -> bool:
+    return (
+        crawler_type_var.get() == "search"
+        and getattr(config, "ENABLE_WEIBO_SEARCH_DEDUP", True)
+    )
+
+
+async def is_cached_weibo_note(note_id: str) -> bool:
+    if not _enable_search_dedup_cache():
+        return False
+    return await WeiboSearchDeduplicator.get_instance().has_note(note_id)
+
+
+async def copy_cached_weibo_note_and_comments(note_id: str, source_keyword: str) -> int:
+    """
+    Copy cached weibo note and comments into current output without requesting Weibo again.
+    Returns copied comment count. Returns -1 when the note is not cached and -2
+    when the cached note already belongs to the current keyword.
+    """
+    if not _enable_search_dedup_cache():
+        return -1
+
+    deduplicator = WeiboSearchDeduplicator.get_instance()
+    cached_note = await deduplicator.get_note(note_id)
+    if not cached_note:
+        return -1
+    if cached_note.get("source_keyword") == source_keyword:
+        return -2
+
+    copied_note = dict(cached_note)
+    copied_note["source_keyword"] = source_keyword
+    copied_note["last_modify_ts"] = utils.get_current_timestamp()
+    await save_weibo_note_content(copied_note, record_cache=False)
+
+    comment_count = 0
+    for cached_comment in await deduplicator.get_comments(note_id):
+        copied_comment = dict(cached_comment)
+        copied_comment["last_modify_ts"] = utils.get_current_timestamp()
+        await save_weibo_note_comment(note_id, copied_comment, record_cache=False)
+        comment_count += 1
+    return comment_count
 
 
 async def update_weibo_note_image(picid: str, pic_content, extension_file_name):

@@ -171,8 +171,54 @@ class WeiboCrawler(AbstractCrawler):
                 search_res = await self.wb_client.get_note_by_keyword(keyword=keyword, page=page, search_type=search_type)
                 note_id_list: List[str] = []
                 note_list = filter_search_result_card(search_res.get("cards"))
+                fresh_note_list: List[Dict] = []
+                duplicate_action = getattr(config, "WEIBO_SEARCH_DUPLICATE_ACTION", "copy")
+                duplicate_action = str(duplicate_action).lower()
+                if duplicate_action not in ("copy", "skip"):
+                    utils.logger.warning(
+                        f"[WeiboCrawler.search] Invalid WEIBO_SEARCH_DUPLICATE_ACTION: {duplicate_action}, fallback to copy"
+                    )
+                    duplicate_action = "copy"
+
+                page_seen_note_ids = set()
+                for note_item in note_list:
+                    if not note_item:
+                        continue
+                    mblog: Dict = note_item.get("mblog")
+                    if not mblog:
+                        continue
+
+                    note_id = mblog.get("id")
+                    if not note_id:
+                        continue
+                    if note_id in page_seen_note_ids:
+                        utils.logger.info(
+                            f"[WeiboCrawler.search] Skip duplicate weibo note {note_id} in current search page"
+                        )
+                        continue
+                    page_seen_note_ids.add(note_id)
+
+                    if await weibo_store.is_cached_weibo_note(note_id):
+                        if duplicate_action == "copy":
+                            copied_comments_count = await weibo_store.copy_cached_weibo_note_and_comments(note_id, keyword)
+                            if copied_comments_count == -2:
+                                utils.logger.info(
+                                    f"[WeiboCrawler.search] Skip duplicate weibo note {note_id} for same keyword: {keyword}"
+                                )
+                            else:
+                                utils.logger.info(
+                                    f"[WeiboCrawler.search] Copy cached weibo note {note_id} for keyword {keyword}, comments:{max(copied_comments_count, 0)}"
+                                )
+                        else:
+                            utils.logger.info(
+                                f"[WeiboCrawler.search] Skip cached weibo note {note_id} for keyword {keyword}"
+                            )
+                        continue
+
+                    fresh_note_list.append(note_item)
+
                 # If full text fetching is enabled, batch get full text of posts
-                note_list = await self.batch_get_notes_full_text(note_list)
+                note_list = await self.batch_get_notes_full_text(fresh_note_list)
                 for note_item in note_list:
                     if note_item:
                         mblog: Dict = note_item.get("mblog")
