@@ -5,7 +5,7 @@ import pytest
 import config
 from store import weibo as weibo_store
 from store.weibo.search_dedup import WeiboSearchDeduplicator
-from var import crawler_type_var
+from var import crawler_type_var, source_keyword_var
 
 
 class MemoryWeiboStore:
@@ -61,6 +61,7 @@ async def test_weibo_search_dedup_reloads_and_copies_note_comments(tmp_path, mon
     assert memory_store.contents[0]["note_id"] == "123456"
     assert memory_store.contents[0]["source_keyword"] == "new keyword"
     assert memory_store.comments[0]["comment_id"] == "999"
+    assert memory_store.comments[0]["source_keyword"] == "new keyword"
 
 
 @pytest.mark.asyncio
@@ -90,3 +91,56 @@ async def test_weibo_search_dedup_skips_same_keyword_copy(tmp_path, monkeypatch)
     assert copied_count == -2
     assert memory_store.contents == []
     assert memory_store.comments == []
+
+
+@pytest.mark.asyncio
+async def test_weibo_save_outputs_source_keyword(monkeypatch):
+    monkeypatch.setattr(config, "ENABLE_WEIBO_SEARCH_DEDUP", False)
+    source_keyword_var.set("keyword from search")
+    memory_store = MemoryWeiboStore()
+    monkeypatch.setattr(
+        weibo_store.WeibostoreFactory,
+        "create_store",
+        staticmethod(lambda: memory_store),
+    )
+
+    note_item = {
+        "mblog": {
+            "id": "123456",
+            "text": "<span>note content</span>",
+            "created_at": "Sat Dec 23 17:12:54 +0800 2023",
+            "attitudes_count": 1,
+            "comments_count": 2,
+            "reposts_count": 3,
+            "region_name": "发布于 上海",
+            "user": {
+                "id": "u1",
+                "screen_name": "note user",
+                "gender": "m",
+                "profile_url": "https://example.com/u1",
+                "profile_image_url": "https://example.com/u1.jpg",
+            },
+        }
+    }
+    comment_item = {
+        "id": "c1",
+        "text": "<span>comment content</span>",
+        "created_at": "Sat Dec 23 17:12:54 +0800 2023",
+        "total_number": 0,
+        "like_count": 4,
+        "source": "来自北京",
+        "rootid": "0",
+        "user": {
+            "id": "u2",
+            "screen_name": "comment user",
+            "gender": "f",
+            "profile_url": "https://example.com/u2",
+            "profile_image_url": "https://example.com/u2.jpg",
+        },
+    }
+
+    await weibo_store.update_weibo_note(note_item)
+    await weibo_store.update_weibo_note_comment("123456", comment_item)
+
+    assert memory_store.contents[0]["source_keyword"] == "keyword from search"
+    assert memory_store.comments[0]["source_keyword"] == "keyword from search"

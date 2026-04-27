@@ -176,6 +176,7 @@ async def update_weibo_note_comment(note_id: str, comment_item: Dict):
         "gender": user_info.get("gender", ""),
         "profile_url": user_info.get("profile_url", ""),
         "avatar": user_info.get("profile_image_url", ""),
+        "source_keyword": source_keyword_var.get(),
     }
     utils.logger.info(f"[store.weibo.update_weibo_note_comment] Weibo note comment: {comment_id}, content: {save_comment_item.get('content', '')[:24]} ...")
     await save_weibo_note_comment(note_id, save_comment_item)
@@ -234,6 +235,7 @@ async def copy_cached_weibo_note_and_comments(note_id: str, source_keyword: str)
     comment_count = 0
     for cached_comment in await deduplicator.get_comments(note_id):
         copied_comment = dict(cached_comment)
+        copied_comment["source_keyword"] = source_keyword
         copied_comment["last_modify_ts"] = utils.get_current_timestamp()
         await save_weibo_note_comment(note_id, copied_comment, record_cache=False)
         comment_count += 1
