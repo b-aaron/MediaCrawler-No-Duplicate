@@ -225,9 +225,15 @@ playwright install
 # 从配置文件中读取关键词搜索相关的帖子并爬取帖子信息与评论
 python main.py --platform xhs --lt qrcode --type search
 
+# 控制每个关键词帖子数、每帖一级评论数、是否爬取回复、每条评论最多回复数
+python main.py --platform wb --lt qrcode --type search --keywords "关键词1,关键词2" --max_notes_count 20 --max_comments_count 20 --get_sub_comment false --max_sub_comments_count 10
+
 # 微博搜索模式支持跨关键词重复帖子处理：copy 复制已缓存帖子/评论，skip 直接跳过
 python main.py --platform wb --lt qrcode --type search --keywords "关键词1,关键词2" --weibo_duplicate_action copy
 python main.py --platform wb --lt qrcode --type search --keywords "关键词1,关键词2" --weibo_duplicate_action skip
+
+# 微博搜索模式默认过滤视频微博，如需保留视频可关闭
+python main.py --platform wb --lt qrcode --type search --keywords "关键词1,关键词2" --filter_weibo_video false
 
 # 从配置文件中读取指定的帖子ID列表获取指定帖子的信息与评论信息
 python main.py --platform xhs --lt qrcode --type detail

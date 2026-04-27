@@ -43,3 +43,46 @@ def filter_search_result_card(card_list: List[Dict]) -> List[Dict]:
                     note_list.append(card_group_item)
 
     return note_list
+
+
+def is_weibo_video_note(note_item: Dict) -> bool:
+    """
+    Check whether a Weibo search note item is a video post.
+    Args:
+        note_item: Search result note item, usually contains mblog.
+
+    Returns:
+
+    """
+    if not note_item:
+        return False
+
+    mblog: Dict = note_item.get("mblog") or {}
+    if not mblog:
+        return False
+
+    page_info: Dict = mblog.get("page_info") or {}
+    page_type = str(page_info.get("type", "")).lower()
+    object_type = str(page_info.get("object_type", "")).lower()
+    if page_type == "video" or "video" in object_type:
+        return True
+
+    media_info = page_info.get("media_info")
+    if media_info:
+        return True
+
+    if mblog.get("video_info") or mblog.get("mix_media_info"):
+        return True
+
+    url_struct = mblog.get("url_struct")
+    if isinstance(url_struct, list):
+        for url_item in url_struct:
+            if not isinstance(url_item, dict):
+                continue
+            url_object_type = str(url_item.get("object_type", "")).lower()
+            url_type = str(url_item.get("type", "")).lower()
+            if "video" in url_object_type or url_type == "video":
+                return True
+
+    pic_video = page_info.get("pic_info", {}).get("pic_video") if isinstance(page_info.get("pic_info"), dict) else None
+    return bool(pic_video)

@@ -217,6 +217,15 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
                 rich_help_panel="Weibo Configuration",
             ),
         ] = config.WEIBO_SEARCH_DUPLICATE_ACTION,
+        filter_weibo_video: Annotated[
+            str,
+            typer.Option(
+                "--filter_weibo_video",
+                help="Whether to filter out video Weibo posts in search mode",
+                rich_help_panel="Weibo Configuration",
+                show_default=True,
+            ),
+        ] = str(config.FILTER_WEIBO_VIDEO),
         headless: Annotated[
             str,
             typer.Option(
@@ -268,14 +277,32 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
                 rich_help_panel="Basic Configuration",
             ),
         ] = "",
+        max_notes_count: Annotated[
+            int,
+            typer.Option(
+                "--max_notes_count",
+                help="Maximum number of posts/videos to crawl per keyword in search mode",
+                rich_help_panel="Basic Configuration",
+            ),
+        ] = config.CRAWLER_MAX_NOTES_COUNT,
         max_comments_count_singlenotes: Annotated[
             int,
             typer.Option(
+                "--max_comments_count",
                 "--max_comments_count_singlenotes",
                 help="Maximum number of first-level comments to crawl per post/video",
                 rich_help_panel="Comment Configuration",
             ),
         ] = config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES,
+        max_sub_comments_count_single_comment: Annotated[
+            int,
+            typer.Option(
+                "--max_sub_comments_count",
+                "--max_sub_comments_count_single_comment",
+                help="Maximum number of replies to crawl per first-level comment",
+                rich_help_panel="Comment Configuration",
+            ),
+        ] = config.CRAWLER_MAX_SUB_COMMENTS_COUNT_SINGLE_COMMENT,
         max_concurrency_num: Annotated[
             int,
             typer.Option(
@@ -323,6 +350,7 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
         enable_comment = _to_bool(get_comment)
         enable_sub_comment = _to_bool(get_sub_comment)
         enable_weibo_search_dedup = _to_bool(weibo_search_dedup)
+        enable_filter_weibo_video = _to_bool(filter_weibo_video)
         weibo_duplicate_action_value = weibo_duplicate_action.strip().lower()
         if weibo_duplicate_action_value not in ("copy", "skip"):
             typer.secho(
@@ -348,11 +376,14 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
         config.ENABLE_GET_SUB_COMMENTS = enable_sub_comment
         config.ENABLE_WEIBO_SEARCH_DEDUP = enable_weibo_search_dedup
         config.WEIBO_SEARCH_DUPLICATE_ACTION = weibo_duplicate_action_value
+        config.FILTER_WEIBO_VIDEO = enable_filter_weibo_video
         config.HEADLESS = enable_headless
         config.CDP_HEADLESS = enable_headless
         config.SAVE_DATA_OPTION = save_data_option.value
         config.COOKIES = cookies
-        config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = max_comments_count_singlenotes
+        config.CRAWLER_MAX_NOTES_COUNT = max(max_notes_count, 0)
+        config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = max(max_comments_count_singlenotes, 0)
+        config.CRAWLER_MAX_SUB_COMMENTS_COUNT_SINGLE_COMMENT = max(max_sub_comments_count_single_comment, 0)
         config.MAX_CONCURRENCY_NUM = max_concurrency_num
         config.SAVE_DATA_PATH = save_data_path
         config.ENABLE_IP_PROXY = enable_ip_proxy_value
@@ -394,12 +425,16 @@ async def parse_cmd(argv: Optional[Sequence[str]] = None):
             get_sub_comment=config.ENABLE_GET_SUB_COMMENTS,
             weibo_search_dedup=config.ENABLE_WEIBO_SEARCH_DEDUP,
             weibo_duplicate_action=config.WEIBO_SEARCH_DUPLICATE_ACTION,
+            filter_weibo_video=config.FILTER_WEIBO_VIDEO,
             headless=config.HEADLESS,
             save_data_option=config.SAVE_DATA_OPTION,
             init_db=init_db_value,
             cookies=config.COOKIES,
             specified_id=specified_id,
             creator_id=creator_id,
+            max_notes_count=config.CRAWLER_MAX_NOTES_COUNT,
+            max_comments_count_singlenotes=config.CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES,
+            max_sub_comments_count_single_comment=config.CRAWLER_MAX_SUB_COMMENTS_COUNT_SINGLE_COMMENT,
         )
 
     command = typer.main.get_command(app)

@@ -222,10 +222,14 @@ class CrawlerManager:
         if config.start_page != 1:
             cmd.extend(["--start", str(config.start_page)])
 
+        cmd.extend(["--max_notes_count", str(config.max_notes_count)])
         cmd.extend(["--get_comment", "true" if config.enable_comments else "false"])
         cmd.extend(["--get_sub_comment", "true" if config.enable_sub_comments else "false"])
+        cmd.extend(["--max_comments_count", str(config.max_comments_count)])
+        cmd.extend(["--max_sub_comments_count", str(config.max_sub_comments_count)])
         cmd.extend(["--weibo_search_dedup", "true" if config.weibo_search_dedup else "false"])
         cmd.extend(["--weibo_duplicate_action", config.weibo_duplicate_action])
+        cmd.extend(["--filter_weibo_video", "true" if config.filter_weibo_video else "false"])
 
         if config.cookies:
             cmd.extend(["--cookies", config.cookies])

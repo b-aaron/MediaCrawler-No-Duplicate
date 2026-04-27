@@ -46,6 +46,10 @@ from .exception import DataFetchError
 from .field import SearchType
 
 
+EMPTY_COMMENTS_TIP = "还没有人评论哦~快来抢沙发！"
+EMPTY_CONTENT_TIP = "这里还没有内容"
+
+
 class WeiboClient(ProxyRefreshMixin):
 
     def __init__(
@@ -93,6 +97,12 @@ class WeiboClient(ProxyRefreshMixin):
 
         ok_code = data.get("ok")
         if ok_code == 0:  # response error
+            if self._is_empty_content_response(data):
+                utils.logger.info(f"[WeiboClient.request] request {method}:{url} returned empty content")
+                return data.get("data", {})
+            if self._is_empty_comments_response(data):
+                utils.logger.info(f"[WeiboClient.request] request {method}:{url} returned empty comments")
+                return {"data": EMPTY_COMMENTS_TIP, "max_id": 0, "max_id_type": 0}
             utils.logger.error(f"[WeiboClient.request] request {method}:{url} err, res:{data}")
             raise DataFetchError(data.get("msg", "response error"))
         elif ok_code != 1:  # unknown error
@@ -100,6 +110,19 @@ class WeiboClient(ProxyRefreshMixin):
             raise DataFetchError(data.get("msg", "unknown error"))
         else:  # response right
             return data.get("data", {})
+
+    @staticmethod
+    def _is_empty_content_response(data: Dict) -> bool:
+        response_data = data.get("data")
+        return (
+            data.get("msg") == EMPTY_CONTENT_TIP
+            and isinstance(response_data, dict)
+            and response_data.get("cards") == []
+        )
+
+    @staticmethod
+    def _is_empty_comments_response(data: Dict) -> bool:
+        return data.get("msg") == EMPTY_COMMENTS_TIP
 
     async def get(self, uri: str, params=None, headers=None, **kwargs) -> Union[Response, Dict]:
         final_uri = uri
@@ -208,24 +231,51 @@ class WeiboClient(ProxyRefreshMixin):
         :return:
         """
         result = []
+        first_level_result = []
         is_end = False
         max_id = -1
         max_id_type = 0
-        while not is_end and len(result) < max_count:
+        while not is_end and len(first_level_result) < max_count:
             comments_res = await self.get_note_comments(note_id, max_id, max_id_type)
             max_id: int = comments_res.get("max_id")
             max_id_type: int = comments_res.get("max_id_type")
             comment_list: List[Dict] = comments_res.get("data", [])
+            if self._is_empty_comments_tip(comment_list):
+                utils.logger.info(f"[WeiboClient.get_note_all_comments] note_id:{note_id} has no comments, stop crawling comments")
+                break
+            if not isinstance(comment_list, list):
+                utils.logger.warning(
+                    f"[WeiboClient.get_note_all_comments] Unexpected comments data type for note_id:{note_id}: {type(comment_list)}"
+                )
+                break
             is_end = max_id == 0
-            if len(result) + len(comment_list) > max_count:
-                comment_list = comment_list[:max_count - len(result)]
+            if len(first_level_result) + len(comment_list) > max_count:
+                comment_list = comment_list[:max_count - len(first_level_result)]
             if callback:  # If callback function exists, execute it
                 await callback(note_id, comment_list)
             await asyncio.sleep(crawl_interval)
+            first_level_result.extend(comment_list)
             result.extend(comment_list)
             sub_comment_result = await self.get_comments_all_sub_comments(note_id, comment_list, callback)
             result.extend(sub_comment_result)
         return result
+
+    @staticmethod
+    def _is_empty_comments_tip(comment_data) -> bool:
+        if isinstance(comment_data, str):
+            return comment_data.strip() == EMPTY_COMMENTS_TIP
+        if not isinstance(comment_data, list) or len(comment_data) != 1:
+            return False
+
+        comment = comment_data[0]
+        if not isinstance(comment, dict):
+            return False
+
+        text = comment.get("text") or comment.get("content") or comment.get("comment_text") or ""
+        if not isinstance(text, str):
+            return False
+        clean_text = re.sub(r"<.*?>", "", text).strip()
+        return clean_text == EMPTY_COMMENTS_TIP
 
     @staticmethod
     async def get_comments_all_sub_comments(
@@ -248,10 +298,15 @@ class WeiboClient(ProxyRefreshMixin):
             return []
 
         res_sub_comments = []
+        max_sub_count = max(int(getattr(config, "CRAWLER_MAX_SUB_COMMENTS_COUNT_SINGLE_COMMENT", 10)), 0)
         for comment in comment_list:
             sub_comments = comment.get("comments")
             if sub_comments and isinstance(sub_comments, list):
-                await callback(note_id, sub_comments)
+                sub_comments = sub_comments[:max_sub_count]
+                if not sub_comments:
+                    continue
+                if callback:
+                    await callback(note_id, sub_comments)
                 res_sub_comments.extend(sub_comments)
         return res_sub_comments
 

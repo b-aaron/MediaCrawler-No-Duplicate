@@ -18,7 +18,7 @@
 
 from enum import Enum
 from typing import Optional, Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PlatformEnum(str, Enum):
@@ -66,10 +66,14 @@ class CrawlerStartRequest(BaseModel):
     specified_ids: str = ""  # Post/video ID list for detail mode, comma-separated
     creator_ids: str = ""  # Creator ID list for creator mode, comma-separated
     start_page: int = 1
+    max_notes_count: int = Field(default=20, ge=0)
     enable_comments: bool = True
+    max_comments_count: int = Field(default=20, ge=0)
     enable_sub_comments: bool = False
+    max_sub_comments_count: int = Field(default=10, ge=0)
     weibo_search_dedup: bool = True
     weibo_duplicate_action: Literal["copy", "skip"] = "copy"
+    filter_weibo_video: bool = True
     save_option: SaveDataOptionEnum = SaveDataOptionEnum.JSONL
     cookies: str = ""
     headless: bool = False

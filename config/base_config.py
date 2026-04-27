@@ -94,8 +94,8 @@ USER_DATA_DIR = "%s_user_data_dir"  # %s will be replaced by platform name
 # The number of pages to start crawling starts from the first page by default
 START_PAGE = 1
 
-# Control the number of crawled videos/posts
-CRAWLER_MAX_NOTES_COUNT = 15
+# Control the number of crawled videos/posts per keyword in search mode
+CRAWLER_MAX_NOTES_COUNT = 20
 
 # Controlling the number of concurrent crawlers
 MAX_CONCURRENCY_NUM = 1
@@ -107,11 +107,14 @@ ENABLE_GET_MEIDAS = False
 ENABLE_GET_COMMENTS = True
 
 # Control the number of crawled first-level comments (single video/post)
-CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = 10
+CRAWLER_MAX_COMMENTS_COUNT_SINGLENOTES = 20
 
 # Whether to enable the mode of crawling second-level comments. By default, crawling of second-level comments is not enabled.
 # If the old version of the project uses db, you need to refer to schema/tables.sql line 287 to add table fields.
 ENABLE_GET_SUB_COMMENTS = False
+
+# Control the number of crawled second-level comments/replies per first-level comment
+CRAWLER_MAX_SUB_COMMENTS_COUNT_SINGLE_COMMENT = 10
 
 # word cloud related
 # Whether to enable generating comment word clouds

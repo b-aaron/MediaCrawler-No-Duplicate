@@ -47,7 +47,7 @@ from var import crawler_type_var, source_keyword_var
 from .client import WeiboClient
 from .exception import DataFetchError
 from .field import SearchType
-from .help import filter_search_result_card
+from .help import filter_search_result_card, is_weibo_video_note
 from .login import WeiboLogin
 
 
@@ -140,9 +140,7 @@ class WeiboCrawler(AbstractCrawler):
         :return:
         """
         utils.logger.info("[WeiboCrawler.search] Begin search weibo keywords")
-        weibo_limit_count = 10  # weibo limit page fixed value
-        if config.CRAWLER_MAX_NOTES_COUNT < weibo_limit_count:
-            config.CRAWLER_MAX_NOTES_COUNT = weibo_limit_count
+        max_notes_count = max(int(config.CRAWLER_MAX_NOTES_COUNT), 0)
         start_page = config.START_PAGE
 
         # Set the search type based on the configuration for weibo
@@ -157,12 +155,16 @@ class WeiboCrawler(AbstractCrawler):
         else:
             utils.logger.error(f"[WeiboCrawler.search] Invalid WEIBO_SEARCH_TYPE: {config.WEIBO_SEARCH_TYPE}")
             return
+        filter_weibo_video = getattr(config, "FILTER_WEIBO_VIDEO", True)
+        if filter_weibo_video and search_type == SearchType.VIDEO:
+            utils.logger.warning("[WeiboCrawler.search] WEIBO_SEARCH_TYPE is video, but FILTER_WEIBO_VIDEO is enabled; video notes will be skipped")
 
         for keyword in config.KEYWORDS.split(","):
             source_keyword_var.set(keyword)
             utils.logger.info(f"[WeiboCrawler.search] Current search keyword: {keyword}")
+            crawled_notes_count = 0
             page = 1
-            while (page - start_page + 1) * weibo_limit_count <= config.CRAWLER_MAX_NOTES_COUNT:
+            while crawled_notes_count < max_notes_count:
                 if page < start_page:
                     utils.logger.info(f"[WeiboCrawler.search] Skip page: {page}")
                     page += 1
@@ -171,6 +173,24 @@ class WeiboCrawler(AbstractCrawler):
                 search_res = await self.wb_client.get_note_by_keyword(keyword=keyword, page=page, search_type=search_type)
                 note_id_list: List[str] = []
                 note_list = filter_search_result_card(search_res.get("cards"))
+                if not note_list:
+                    utils.logger.info(f"[WeiboCrawler.search] No more notes for keyword: {keyword}, page: {page}")
+                    break
+                if filter_weibo_video:
+                    origin_count = len(note_list)
+                    note_list = [note_item for note_item in note_list if not is_weibo_video_note(note_item)]
+                    filtered_count = origin_count - len(note_list)
+                    if filtered_count > 0:
+                        utils.logger.info(
+                            f"[WeiboCrawler.search] Filtered {filtered_count} video weibo notes for keyword: {keyword}, page: {page}"
+                        )
+                    if not note_list:
+                        page += 1
+                        await asyncio.sleep(config.CRAWLER_MAX_SLEEP_SEC)
+                        utils.logger.info(
+                            f"[WeiboCrawler.search] Sleeping for {config.CRAWLER_MAX_SLEEP_SEC} seconds after filtering page {page-1}"
+                        )
+                        continue
                 fresh_note_list: List[Dict] = []
                 duplicate_action = getattr(config, "WEIBO_SEARCH_DUPLICATE_ACTION", "copy")
                 duplicate_action = str(duplicate_action).lower()
@@ -182,6 +202,8 @@ class WeiboCrawler(AbstractCrawler):
 
                 page_seen_note_ids = set()
                 for note_item in note_list:
+                    if crawled_notes_count + len(fresh_note_list) >= max_notes_count:
+                        break
                     if not note_item:
                         continue
                     mblog: Dict = note_item.get("mblog")
@@ -209,6 +231,9 @@ class WeiboCrawler(AbstractCrawler):
                                 utils.logger.info(
                                     f"[WeiboCrawler.search] Copy cached weibo note {note_id} for keyword {keyword}, comments:{max(copied_comments_count, 0)}"
                                 )
+                                crawled_notes_count += 1
+                                if crawled_notes_count + len(fresh_note_list) >= max_notes_count:
+                                    break
                         else:
                             utils.logger.info(
                                 f"[WeiboCrawler.search] Skip cached weibo note {note_id} for keyword {keyword}"
@@ -216,6 +241,8 @@ class WeiboCrawler(AbstractCrawler):
                         continue
 
                     fresh_note_list.append(note_item)
+                    if crawled_notes_count + len(fresh_note_list) >= max_notes_count:
+                        break
 
                 # If full text fetching is enabled, batch get full text of posts
                 note_list = await self.batch_get_notes_full_text(fresh_note_list)
@@ -226,6 +253,7 @@ class WeiboCrawler(AbstractCrawler):
                             note_id_list.append(mblog.get("id"))
                             await weibo_store.update_weibo_note(note_item)
                             await self.get_note_images(mblog)
+                            crawled_notes_count += 1
 
                 page += 1
 

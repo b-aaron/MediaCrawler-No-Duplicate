@@ -47,3 +47,7 @@ ENABLE_WEIBO_SEARCH_DEDUP = True
 # copy = copy cached post and cached comments into the current output with the current source_keyword
 # skip = skip this note and do not request comments/media again
 WEIBO_SEARCH_DUPLICATE_ACTION = "copy"
+
+# Whether to filter out video Weibo posts in search mode.
+# When enabled, video posts are skipped before save/cache/comment crawling.
+FILTER_WEIBO_VIDEO = True
