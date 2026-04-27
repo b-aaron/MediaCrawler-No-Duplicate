@@ -250,6 +250,7 @@ class WeiboNoteComment(Base):
     comment_like_count = Column(Text, comment='评论点赞数')
     sub_comment_count = Column(Text, comment='子评论数')
     parent_comment_id = Column(String(255), comment='父评论ID')
+    source_keyword = Column(Text, default='', comment='来源关键词')
 
 class WeiboCreator(Base):
     __tablename__ = 'weibo_creator'

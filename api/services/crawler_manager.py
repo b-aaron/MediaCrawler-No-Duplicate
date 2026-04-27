@@ -224,6 +224,8 @@ class CrawlerManager:
 
         cmd.extend(["--get_comment", "true" if config.enable_comments else "false"])
         cmd.extend(["--get_sub_comment", "true" if config.enable_sub_comments else "false"])
+        cmd.extend(["--weibo_search_dedup", "true" if config.weibo_search_dedup else "false"])
+        cmd.extend(["--weibo_duplicate_action", config.weibo_duplicate_action])
 
         if config.cookies:
             cmd.extend(["--cookies", config.cookies])
